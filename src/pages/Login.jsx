@@ -16,7 +16,7 @@ export default function Login() {
 
         login('G4 Education'); // Global user for all data access
         await loadData(urls[type]);
-        navigate('/dashboard');
+        navigate(type === 'sales' ? '/sales' : '/opps');
     };
 
     if (error) {
