@@ -71,6 +71,46 @@ export const fetchSalesData = async (url = 'https://n8n-comercial.g4educacao.com
     }
 };
 
+export const fetchContestedData = async () => {
+    try {
+        const response = await fetch('https://n8n-comercial.g4educacao.com/webhook/contestacoes', {
+            method: 'GET',
+            headers: {
+                'X-App-Client': 'g4_engineering',
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+
+        const rawData = await response.json();
+
+        return rawData.map((item, index) => {
+            const getVal = (keyName) => {
+                const foundKey = Object.keys(item).find(k => k.toLowerCase().trim() === keyName.toLowerCase());
+                return foundKey ? item[foundKey] : '';
+            };
+
+            return {
+                id: `contestation-${getVal('Deal ID') || index}-${index}`,
+                deal_id: String(getVal('Deal ID')).trim(),
+                leader: String(getVal('Líder') || getVal('Lider')).trim(),
+                nome: String(getVal('Nome') || getVal('Nome do AE ou SDR')).trim(),
+                category: String(getVal('Categoria')).trim(),
+                description: String(getVal('Descrição') || getVal('Descricao')).trim(),
+                devolutiva: String(getVal('Devolutiva (Time comissionamento)') || getVal('Devolutiva')).trim(),
+                commission_status: 'Disputed'
+            };
+        });
+
+    } catch (error) {
+        console.error("Failed to fetch contested data:", error);
+        throw error;
+    }
+};
+
 export const updateSaleStatus = async (saleItem, newStatus, disputeDetails = null) => {
     try {
         const isDispute = newStatus === 'Disputed' || newStatus === 'contestado';
