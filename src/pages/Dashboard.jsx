@@ -64,7 +64,8 @@ export default function Dashboard() {
     const [repFilters, setRepFilters] = useState([]); // Array for multi-select
     const [leaderFilters, setLeaderFilters] = useState([]); // Array for multi-select
     const [qualifierFilters, setQualifierFilters] = useState([]); // Opps specific
-    const [multiplierFinalFilter, setMultiplierFinalFilter] = useState('all'); // Opps specific
+    const [oppAfterMultipliersFilter, setOppAfterMultipliersFilter] = useState('all'); // Opps specific
+    const [dealIdFilter, setDealIdFilter] = useState('');
 
     // Filter and Sort - Primary source of truth for both metrics and table
     const userSales = useMemo(() => {
@@ -72,6 +73,9 @@ export default function Dashboard() {
 
         let filtered = data
             .filter(sale => {
+                // Deal ID Filter
+                if (dealIdFilter && !String(sale.deal_id || '').toLowerCase().includes(dealIdFilter.toLowerCase())) return false;
+
                 // Shared Status Filter
                 const status = (sale.status || '').trim();
                 if (statusFilter === 'all') return true;
@@ -88,9 +92,13 @@ export default function Dashboard() {
                     const leader = (sale.direct_leader_qualifier || '').trim();
                     if (leaderFilters.length > 0 && !leaderFilters.includes(leader)) return false;
 
-                    // Multiplier Final Filter
-                    if (multiplierFinalFilter !== 'all') {
-                        if (String(sale.multiplier_final) !== multiplierFinalFilter) return false;
+                    // OPP após Multiplicadores Filter
+                    if (oppAfterMultipliersFilter !== 'all') {
+                        const val = sale.price_after_multipliers;
+                        const numericValue = typeof val === 'string'
+                            ? val.replace('R$', '').replace(/\./g, '').trim()
+                            : String(val);
+                        if (numericValue !== oppAfterMultipliersFilter) return false;
                     }
                 } else {
                     // Representative Filter
@@ -120,11 +128,11 @@ export default function Dashboard() {
 
         // Sorting (Always return a new array)
         return [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
-    }, [data, currentUser, activeTab, statusFilter, paymentMethodFilter, repFilters, leaderFilters, qualifierFilters, multiplierFinalFilter, viewType]);
+    }, [data, currentUser, activeTab, statusFilter, paymentMethodFilter, repFilters, leaderFilters, qualifierFilters, oppAfterMultipliersFilter, viewType, dealIdFilter]);
 
     // Extract Unique Filter Options
-    const { statusOptions, paymentMethodOptions, repOptions, leaderOptions, qualifierOptions, multiplierFinalOptions } = useMemo(() => {
-        if (!data) return { statusOptions: [], paymentMethodOptions: [], repOptions: [], leaderOptions: [], qualifierOptions: [], multiplierFinalOptions: [] };
+    const { statusOptions, paymentMethodOptions, repOptions, leaderOptions, qualifierOptions, oppAfterMultipliersOptions } = useMemo(() => {
+        if (!data) return { statusOptions: [], paymentMethodOptions: [], repOptions: [], leaderOptions: [], qualifierOptions: [], oppAfterMultipliersOptions: [] };
 
         return {
             statusOptions: Array.from(new Set(data.map(s => s.status).filter(Boolean))).sort(),
@@ -132,7 +140,16 @@ export default function Dashboard() {
             repOptions: Array.from(new Set(data.map(s => s.representative).filter(Boolean))).sort(),
             leaderOptions: Array.from(new Set(data.map(s => viewType === 'opps' ? s.direct_leader_qualifier : s.direct_leader).filter(Boolean))).sort(),
             qualifierOptions: Array.from(new Set(data.map(s => s.qualifier).filter(Boolean))).sort(),
-            multiplierFinalOptions: Array.from(new Set(data.map(s => String(s.multiplier_final)).filter(Boolean))).sort()
+            oppAfterMultipliersOptions: Array.from(new Set(data.map(s => {
+                if (viewType !== 'opps') return null;
+                const val = s.price_after_multipliers;
+                if (!val) return null;
+                return typeof val === 'string' ? val.replace('R$', '').replace(/\./g, '').trim() : String(val);
+            }).filter(Boolean))).sort((a, b) => {
+                const valA = parseFloat(a.replace(',', '.'));
+                const valB = parseFloat(b.replace(',', '.'));
+                return valA - valB;
+            })
         };
     }, [data, viewType]);
 
@@ -243,7 +260,9 @@ export default function Dashboard() {
                         {viewType === 'opps' ? 'Opps após Multiplicadores' : 'Receita com Multiplicadores'}
                     </p>
                     <p className="text-xl font-bold font-sans text-[#0B1B2B]">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenueWithMultipliers)}
+                        {viewType === 'opps'
+                            ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(totalRevenueWithMultipliers)
+                            : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenueWithMultipliers)}
                     </p>
                 </div>
 
@@ -279,7 +298,18 @@ export default function Dashboard() {
             </div>
 
             {/* Filters Bar */}
-            <div className={`bg-gray-50/50 p-4 rounded-xl border border-gray-100 mb-6 grid grid-cols-1 md:grid-cols-5 gap-4 items-end transition-all duration-300 ${activeTab === 'contested' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+            <div className={`bg-gray-50/50 p-4 rounded-xl border border-gray-100 mb-6 grid grid-cols-1 md:grid-cols-6 gap-4 items-end transition-all duration-300 ${activeTab === 'contested' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                <div className="flex-1 min-w-[150px]">
+                    <label className="block text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5 ml-1">Deal ID</label>
+                    <input
+                        type="text"
+                        value={dealIdFilter}
+                        onChange={(e) => setDealIdFilter(e.target.value)}
+                        placeholder="Filtrar por ID..."
+                        className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-xs text-[#0B1B2B] focus:outline-none focus:border-brand-gold transition-colors shadow-sm"
+                    />
+                </div>
+
                 <MultiSelect
                     label={viewType === 'opps' ? "Qualificador" : "Proprietário"}
                     options={viewType === 'opps' ? qualifierOptions : repOptions}
@@ -311,17 +341,17 @@ export default function Dashboard() {
 
                 <div className="flex-1 min-w-[200px]">
                     <label className="block text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5 ml-1">
-                        {viewType === 'opps' ? "Multiplicador Final" : "Forma de Pagamento"}
+                        {viewType === 'opps' ? "OPP após Multiplicadores" : "Forma de Pagamento"}
                     </label>
                     {viewType === 'opps' ? (
                         <select
-                            value={multiplierFinalFilter}
-                            onChange={(e) => setMultiplierFinalFilter(e.target.value)}
+                            value={oppAfterMultipliersFilter}
+                            onChange={(e) => setOppAfterMultipliersFilter(e.target.value)}
                             className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-xs text-[#0B1B2B] focus:outline-none focus:border-brand-gold transition-colors appearance-none cursor-pointer"
                             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23CBD5E0' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
                         >
-                            <option value="all">Todos os Multiplicadores</option>
-                            {multiplierFinalOptions.map(opt => (
+                            <option value="all">Todos os Valores</option>
+                            {oppAfterMultipliersOptions.map(opt => (
                                 <option key={opt} value={opt}>{opt}</option>
                             ))}
                         </select>
@@ -348,7 +378,8 @@ export default function Dashboard() {
                         setRepFilters([]);
                         setLeaderFilters([]);
                         setQualifierFilters([]);
-                        setMultiplierFinalFilter('all');
+                        setOppAfterMultipliersFilter('all');
+                        setDealIdFilter('');
                     }}
                     className="px-4 py-2.5 text-xs font-bold text-gray-400 hover:text-[#0B1B2B] transition-colors flex items-center gap-2 h-[42px] justify-center"
                 >
@@ -495,7 +526,11 @@ export default function Dashboard() {
                                                     <td className="p-4 text-xs text-center font-mono text-gray-600">{sale.multiplier_campaign}</td>
                                                     <td className="p-4 text-xs text-center font-mono font-bold text-[#0B1B2B]">{sale.multiplier_final}</td>
                                                     <td className="p-4 text-xs font-bold text-[#0B1B2B] font-mono">
-                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.price_after_multipliers)}
+                                                        {new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(
+                                                            typeof sale.price_after_multipliers === 'string'
+                                                                ? parseFloat(sale.price_after_multipliers.replace('R$', '').replace(/\./g, '').replace(',', '.'))
+                                                                : sale.price_after_multipliers
+                                                        )}
                                                     </td>
                                                 </>
                                             ) : (
