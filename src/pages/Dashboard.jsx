@@ -66,6 +66,7 @@ export default function Dashboard() {
     const [qualifierFilters, setQualifierFilters] = useState([]); // Opps specific
     const [oppAfterMultipliersFilter, setOppAfterMultipliersFilter] = useState('all'); // Opps specific
     const [dealIdFilter, setDealIdFilter] = useState('');
+    const [contestantFilter, setContestantFilter] = useState('all');
 
     // Filter and Sort - Primary source of truth for both metrics and table
     const userSales = useMemo(() => {
@@ -75,6 +76,9 @@ export default function Dashboard() {
             .filter(sale => {
                 // Deal ID Filter
                 if (dealIdFilter && !String(sale.deal_id || '').toLowerCase().includes(dealIdFilter.toLowerCase())) return false;
+
+                // Contestant Filter (primarily for contested tab)
+                if (contestantFilter !== 'all' && sale.contestant !== contestantFilter) return false;
 
                 // Shared Status Filter
                 const status = (sale.status || '').trim();
@@ -128,18 +132,22 @@ export default function Dashboard() {
 
         // Sorting (Always return a new array)
         return [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
-    }, [data, currentUser, activeTab, statusFilter, paymentMethodFilter, repFilters, leaderFilters, qualifierFilters, oppAfterMultipliersFilter, viewType, dealIdFilter]);
+    }, [data, currentUser, activeTab, statusFilter, paymentMethodFilter, repFilters, leaderFilters, qualifierFilters, oppAfterMultipliersFilter, viewType, dealIdFilter, contestantFilter]);
 
     // Extract Unique Filter Options
-    const { statusOptions, paymentMethodOptions, repOptions, leaderOptions, qualifierOptions, oppAfterMultipliersOptions } = useMemo(() => {
-        if (!data) return { statusOptions: [], paymentMethodOptions: [], repOptions: [], leaderOptions: [], qualifierOptions: [], oppAfterMultipliersOptions: [] };
+    const { statusOptions, paymentMethodOptions, repOptions, leaderOptions, qualifierOptions, oppAfterMultipliersOptions, contestantOptions } = useMemo(() => {
+        if (!data) return { statusOptions: [], paymentMethodOptions: [], repOptions: [], leaderOptions: [], qualifierOptions: [], oppAfterMultipliersOptions: [], contestantOptions: [] };
+
+        const reps = Array.from(new Set(data.map(s => s.representative).filter(Boolean)));
+        const quals = Array.from(new Set(data.map(s => s.qualifier).filter(Boolean)));
+        const allNames = Array.from(new Set([...reps, ...quals])).sort();
 
         return {
             statusOptions: Array.from(new Set(data.map(s => s.status).filter(Boolean))).sort(),
             paymentMethodOptions: Array.from(new Set(data.map(s => s.payment_method).filter(p => p && p.trim() !== ''))).sort(),
-            repOptions: Array.from(new Set(data.map(s => s.representative).filter(Boolean))).sort(),
+            repOptions: reps.sort(),
             leaderOptions: Array.from(new Set(data.map(s => viewType === 'opps' ? s.direct_leader_qualifier : s.direct_leader).filter(Boolean))).sort(),
-            qualifierOptions: Array.from(new Set(data.map(s => s.qualifier).filter(Boolean))).sort(),
+            qualifierOptions: quals.sort(),
             oppAfterMultipliersOptions: Array.from(new Set(data.map(s => {
                 if (viewType !== 'opps') return null;
                 const val = s.price_after_multipliers;
@@ -149,7 +157,8 @@ export default function Dashboard() {
                 const valA = parseFloat(a.replace(',', '.'));
                 const valB = parseFloat(b.replace(',', '.'));
                 return valA - valB;
-            })
+            }),
+            contestantOptions: allNames
         };
     }, [data, viewType]);
 
@@ -198,6 +207,7 @@ export default function Dashboard() {
         e.preventDefault();
         const formData = new FormData(e.target);
         const disputeDetails = {
+            contestant: formData.get('contestant'),
             category: formData.get('category'),
             description: formData.get('description'),
             missing_deal_id: formData.get('missing_deal_id') || null,
@@ -298,7 +308,7 @@ export default function Dashboard() {
             </div>
 
             {/* Filters Bar */}
-            <div className={`bg-gray-50/50 p-4 rounded-xl border border-gray-100 mb-6 grid grid-cols-1 md:grid-cols-6 gap-4 items-end transition-all duration-300 ${activeTab === 'contested' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+            <div className={`bg-gray-50/50 p-4 rounded-xl border border-gray-100 mb-6 grid grid-cols-1 md:grid-cols-6 gap-4 items-end transition-all duration-300`}>
                 <div className="flex-1 min-w-[150px]">
                     <label className="block text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5 ml-1">Deal ID</label>
                     <input
@@ -310,65 +320,84 @@ export default function Dashboard() {
                     />
                 </div>
 
-                <MultiSelect
-                    label={viewType === 'opps' ? "Qualificador" : "Proprietário"}
-                    options={viewType === 'opps' ? qualifierOptions : repOptions}
-                    selected={viewType === 'opps' ? qualifierFilters : repFilters}
-                    onChange={viewType === 'opps' ? setQualifierFilters : setRepFilters}
-                />
-
-                <MultiSelect
-                    label={viewType === 'opps' ? "Líder Direto do Qualificador" : "Líder Direto"}
-                    options={leaderOptions}
-                    selected={leaderFilters}
-                    onChange={setLeaderFilters}
-                />
-
-                <div className="flex-1 min-w-[200px]">
-                    <label className="block text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5 ml-1">Status do Reconhecimento</label>
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-xs text-[#0B1B2B] focus:outline-none focus:border-brand-gold transition-colors appearance-none cursor-pointer"
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23CBD5E0' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
-                    >
-                        <option value="all">Todos os Status</option>
-                        {statusOptions.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                    </select>
-                </div>
-
-                <div className="flex-1 min-w-[200px]">
-                    <label className="block text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5 ml-1">
-                        {viewType === 'opps' ? "OPP após Multiplicadores" : "Forma de Pagamento"}
-                    </label>
-                    {viewType === 'opps' ? (
+                {activeTab === 'contested' ? (
+                    <div className="flex-1 min-w-[200px]">
+                        <label className="block text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5 ml-1">Contestador</label>
                         <select
-                            value={oppAfterMultipliersFilter}
-                            onChange={(e) => setOppAfterMultipliersFilter(e.target.value)}
+                            value={contestantFilter}
+                            onChange={(e) => setContestantFilter(e.target.value)}
                             className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-xs text-[#0B1B2B] focus:outline-none focus:border-brand-gold transition-colors appearance-none cursor-pointer"
                             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23CBD5E0' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
                         >
-                            <option value="all">Todos os Valores</option>
-                            {oppAfterMultipliersOptions.map(opt => (
+                            <option value="all">Todos os Contestadores</option>
+                            {contestantOptions.map(opt => (
                                 <option key={opt} value={opt}>{opt}</option>
                             ))}
                         </select>
-                    ) : (
+                    </div>
+                ) : (
+                    <MultiSelect
+                        label={viewType === 'opps' ? "Qualificador" : "Proprietário"}
+                        options={viewType === 'opps' ? qualifierOptions : repOptions}
+                        selected={viewType === 'opps' ? qualifierFilters : repFilters}
+                        onChange={viewType === 'opps' ? setQualifierFilters : setRepFilters}
+                    />
+                )}
+
+                <div className={`${activeTab === 'contested' ? 'opacity-50 pointer-events-none grayscale' : ''} grid grid-cols-1 md:grid-cols-3 gap-4 col-span-1 md:col-span-3 items-end`}>
+                    <MultiSelect
+                        label={viewType === 'opps' ? "Líder Direto do Qualificador" : "Líder Direto"}
+                        options={leaderOptions}
+                        selected={leaderFilters}
+                        onChange={setLeaderFilters}
+                    />
+
+                    <div className="flex-1 min-w-[200px]">
+                        <label className="block text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5 ml-1">Status do Reconhecimento</label>
                         <select
-                            value={paymentMethodFilter}
-                            onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
                             className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-xs text-[#0B1B2B] focus:outline-none focus:border-brand-gold transition-colors appearance-none cursor-pointer"
                             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23CBD5E0' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
                         >
-                            <option value="all">Todas as Formas</option>
-                            <option value="blank">(Em branco)</option>
-                            {paymentMethodOptions.map(opt => (
+                            <option value="all">Todos os Status</option>
+                            {statusOptions.map(opt => (
                                 <option key={opt} value={opt}>{opt}</option>
                             ))}
                         </select>
-                    )}
+                    </div>
+
+                    <div className="flex-1 min-w-[200px]">
+                        <label className="block text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1.5 ml-1">
+                            {viewType === 'opps' ? "OPP após Multiplicadores" : "Forma de Pagamento"}
+                        </label>
+                        {viewType === 'opps' ? (
+                            <select
+                                value={oppAfterMultipliersFilter}
+                                onChange={(e) => setOppAfterMultipliersFilter(e.target.value)}
+                                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-xs text-[#0B1B2B] focus:outline-none focus:border-brand-gold transition-colors appearance-none cursor-pointer"
+                                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23CBD5E0' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
+                            >
+                                <option value="all">Todos os Valores</option>
+                                {oppAfterMultipliersOptions.map(opt => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                            </select>
+                        ) : (
+                            <select
+                                value={paymentMethodFilter}
+                                onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                                className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-xs text-[#0B1B2B] focus:outline-none focus:border-brand-gold transition-colors appearance-none cursor-pointer"
+                                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23CBD5E0' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
+                            >
+                                <option value="all">Todas as Formas</option>
+                                <option value="blank">(Em branco)</option>
+                                {paymentMethodOptions.map(opt => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                            </select>
+                        )}
+                    </div>
                 </div>
 
                 <button
@@ -380,6 +409,7 @@ export default function Dashboard() {
                         setQualifierFilters([]);
                         setOppAfterMultipliersFilter('all');
                         setDealIdFilter('');
+                        setContestantFilter('all');
                     }}
                     className="px-4 py-2.5 text-xs font-bold text-gray-400 hover:text-[#0B1B2B] transition-colors flex items-center gap-2 h-[42px] justify-center"
                 >
@@ -395,6 +425,7 @@ export default function Dashboard() {
                             {activeTab === 'contested' ? (
                                 <tr>
                                     <th className="p-4 font-bold text-xs uppercase tracking-wider">Deal ID</th>
+                                    <th className="p-4 font-bold text-xs uppercase tracking-wider">Contestador</th>
                                     <th className="p-4 font-bold text-xs uppercase tracking-wider">Categoria</th>
                                     <th className="p-4 font-bold text-xs uppercase tracking-wider">Descrição</th>
                                     <th className="p-4 font-bold text-xs uppercase tracking-wider">Devolutiva</th>
@@ -460,6 +491,7 @@ export default function Dashboard() {
 
                                     {activeTab === 'contested' ? (
                                         <>
+                                            <td className="p-4 text-xs text-[#0B1B2B] font-medium">{sale.contestant || '-'}</td>
                                             <td className="p-4 text-xs text-[#0B1B2B] font-medium">{sale.category}</td>
                                             <td className="p-4 text-xs text-gray-600 max-w-[300px] truncate" title={sale.description}>
                                                 {sale.description}
@@ -675,6 +707,20 @@ export default function Dashboard() {
                                         />
                                     </div>
                                 )}
+
+                                <div className="space-y-2">
+                                    <label className="block text-brand-gold text-xs font-bold uppercase tracking-wider">Nome de quem está realizando a contestação <span className="text-red-500">*</span></label>
+                                    <select
+                                        name="contestant"
+                                        required
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg p-4 text-white focus:outline-none focus:border-brand-gold focus:bg-white/10 transition-colors"
+                                    >
+                                        <option value="" disabled selected>Selecione...</option>
+                                        {contestantOptions.map(name => (
+                                            <option key={name} value={name} className="bg-[#0B1B2B]">{name}</option>
+                                        ))}
+                                    </select>
+                                </div>
 
                                 <div className="space-y-2">
                                     <label className="block text-brand-gold text-xs font-bold uppercase tracking-wider">Categoria <span className="text-red-500">*</span></label>

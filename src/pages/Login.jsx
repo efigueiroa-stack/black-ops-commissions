@@ -60,19 +60,19 @@ export default function Login() {
                         <button
                             onClick={() => handleAction('sales')}
                             disabled={loading}
-                            className="w-full py-8 px-6 bg-[#0B1B2B] text-white rounded-2xl text-xl font-bold uppercase tracking-widest hover:bg-[#1a2a3a] transition-all transform hover:scale-[1.02] shadow-2xl flex flex-col items-center gap-2 disabled:opacity-50"
+                            className="w-full py-8 px-6 bg-transparent border-2 border-[#B9915B] text-[#001F35] rounded-2xl text-xl font-bold uppercase tracking-widest hover:bg-[#001F35] hover:text-white transition-all transform hover:scale-[1.02] shadow-2xl flex flex-col items-center gap-2 disabled:opacity-50 group"
                         >
                             <span>Acessar Extrato de Vendas</span>
-                            <span className="text-xs opacity-50 font-normal">Acompanhe suas vendas e comissões</span>
+                            <span className="text-xs opacity-50 font-normal group-hover:text-white/70">Acompanhe suas vendas e comissões</span>
                         </button>
 
                         <button
                             onClick={() => handleAction('opps')}
                             disabled={loading}
-                            className="w-full py-8 px-6 border-4 border-[#0B1B2B] text-[#0B1B2B] rounded-2xl text-xl font-bold uppercase tracking-widest hover:bg-gray-50 transition-all transform hover:scale-[1.02] shadow-xl flex flex-col items-center gap-2 disabled:opacity-50"
+                            className="w-full py-8 px-6 bg-transparent border-2 border-[#B9915B] text-[#001F35] rounded-2xl text-xl font-bold uppercase tracking-widest hover:bg-[#001F35] hover:text-white transition-all transform hover:scale-[1.02] shadow-xl flex flex-col items-center gap-2 disabled:opacity-50 group"
                         >
                             <span>Acessar Extrato de Opps</span>
-                            <span className="text-xs opacity-50 font-normal">Monitore oportunidades e funil</span>
+                            <span className="text-xs opacity-50 font-normal group-hover:text-white/70">Monitore oportunidades e funil</span>
                         </button>
                     </div>
                 </div>

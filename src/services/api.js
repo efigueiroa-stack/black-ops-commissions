@@ -79,11 +79,12 @@ export const updateSaleStatus = async (saleItem, newStatus, disputeDetails = nul
         // Specific requirements for contestation/missing deal as per user curl
         if (isDispute || isMissing) {
             const payload = {
-                "nome": saleItem.representative || disputeDetails?.userName || "Lucas",
-                "Deal ID": (isMissing ? disputeDetails?.missing_deal_id : saleItem.deal_id) || "0",
-                "Valor": String(saleItem.value || 0),
-                "Descricao": disputeDetails?.description || "Teste de Contestar",
-                "Categoria": disputeDetails?.category || "Multiplicador errado"
+                "nome": disputeDetails?.contestant || saleItem.representative || "Eduardo",
+                "devolutiva": "Em análise",
+                "deal ID": (isMissing ? disputeDetails?.missing_deal_id : saleItem.deal_id) || "0",
+                "valor": String(saleItem.value || 0),
+                "descricao": disputeDetails?.description || "Teste de Contestar",
+                "categoria": disputeDetails?.category || "Multiplicador errado"
             };
 
             const response = await fetch('https://n8n-comercial.g4educacao.com/webhook/validar-venda', {
